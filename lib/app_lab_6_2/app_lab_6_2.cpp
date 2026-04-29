@@ -1,0 +1,175 @@
+#include "app_lab_6_2.h"
+
+#include <Arduino.h>
+#include <Arduino_FreeRTOS.h>
+#include <stdbool.h>
+#include <stdio.h>
+
+#include "../../include/config.h"
+#include "../dd_serial_stdio/dd_serial_stdio.h"
+#include "../dd_traffic_light/dd_traffic_light.h"
+
+typedef enum
+{
+    FSM_LIGHT_RED = 0,
+    FSM_LIGHT_YELLOW = 1,
+    FSM_LIGHT_GREEN = 2
+} fsm_light_state_t;
+
+typedef struct
+{
+    fsm_light_state_t state;
+} direction_fsm_t;
+
+static direction_fsm_t s_ewFsm = {FSM_LIGHT_RED};
+static direction_fsm_t s_nsFsm = {FSM_LIGHT_RED};
+
+static bool s_nsRequestActive = false;
+static uint8_t s_btnLastRaw = HIGH;
+static uint8_t s_btnStable = HIGH;
+static unsigned long s_btnLastChangeMs = 0;
+
+static TickType_t s_ewGreenStartTick = 0;
+static TickType_t s_nsGreenStartTick = 0;
+
+static const char *stateToStr(fsm_light_state_t state)
+{
+    if (state == FSM_LIGHT_GREEN) return "GREEN";
+    if (state == FSM_LIGHT_YELLOW) return "YELLOW";
+    return "RED";
+}
+
+static dd_tl_color_t toTlColor(fsm_light_state_t state)
+{
+    if (state == FSM_LIGHT_GREEN) return DD_TL_COLOR_GREEN;
+    if (state == FSM_LIGHT_YELLOW) return DD_TL_COLOR_YELLOW;
+    return DD_TL_COLOR_RED;
+}
+
+static void applyCurrentStates(void)
+{
+    ddTrafficLightSet(DD_TL_DIR_EW, toTlColor(s_ewFsm.state));
+    ddTrafficLightSet(DD_TL_DIR_NS, toTlColor(s_nsFsm.state));
+}
+
+static void printIntersectionState(const char *prefix)
+{
+    printf("%s | EW=%s | NS=%s | NS_REQ=%s\r\n",
+           prefix,
+           stateToStr(s_ewFsm.state),
+           stateToStr(s_nsFsm.state),
+           s_nsRequestActive ? "ON" : "OFF");
+}
+
+static void setDirectionState(direction_fsm_t *fsm, fsm_light_state_t nextState)
+{
+    if (!fsm) return;
+    fsm->state = nextState;
+}
+
+static bool readRequestButtonPressedEvent(void)
+{
+    const uint8_t raw = (uint8_t)digitalRead(TL_REQUEST_BUTTON_PIN);
+    const unsigned long nowMs = millis();
+
+    if (raw != s_btnLastRaw)
+    {
+        s_btnLastRaw = raw;
+        s_btnLastChangeMs = nowMs;
+    }
+
+    if ((nowMs - s_btnLastChangeMs) >= TL_REQUEST_DEBOUNCE_MS && s_btnStable != s_btnLastRaw)
+    {
+        s_btnStable = s_btnLastRaw;
+        return (s_btnStable == TL_REQUEST_ACTIVE_STATE);
+    }
+
+    return false;
+}
+
+static void transitionEwToNs(void)
+{
+    setDirectionState(&s_ewFsm, FSM_LIGHT_YELLOW);
+    setDirectionState(&s_nsFsm, FSM_LIGHT_RED);
+    applyCurrentStates();
+    printIntersectionState("Transition EW->NS step 1");
+    vTaskDelay(pdMS_TO_TICKS(TL_YELLOW_MS));
+
+    setDirectionState(&s_ewFsm, FSM_LIGHT_RED);
+    setDirectionState(&s_nsFsm, FSM_LIGHT_GREEN);
+    applyCurrentStates();
+    s_nsGreenStartTick = xTaskGetTickCount();
+    printIntersectionState("Transition EW->NS step 2");
+}
+
+static void transitionNsToEw(void)
+{
+    setDirectionState(&s_nsFsm, FSM_LIGHT_YELLOW);
+    setDirectionState(&s_ewFsm, FSM_LIGHT_RED);
+    applyCurrentStates();
+    printIntersectionState("Transition NS->EW step 1");
+    vTaskDelay(pdMS_TO_TICKS(TL_YELLOW_MS));
+
+    setDirectionState(&s_nsFsm, FSM_LIGHT_RED);
+    setDirectionState(&s_ewFsm, FSM_LIGHT_GREEN);
+    applyCurrentStates();
+    s_ewGreenStartTick = xTaskGetTickCount();
+    printIntersectionState("Transition NS->EW step 2");
+}
+
+void app_lab_6_2_setup(void)
+{
+    ddSerialStdioSetup();
+    ddTrafficLightInit();
+
+    pinMode(TL_REQUEST_BUTTON_PIN, INPUT_PULLUP);
+    s_btnLastRaw = (uint8_t)digitalRead(TL_REQUEST_BUTTON_PIN);
+    s_btnStable = s_btnLastRaw;
+    s_btnLastChangeMs = millis();
+
+    setDirectionState(&s_ewFsm, FSM_LIGHT_GREEN);
+    setDirectionState(&s_nsFsm, FSM_LIGHT_RED);
+    applyCurrentStates();
+
+    s_nsRequestActive = false;
+    s_ewGreenStartTick = xTaskGetTickCount();
+
+    printf("\r\nLab 6.2 - Smart Traffic Light ready.\r\n");
+    printf("Priority: EW stays GREEN while no NS request exists.\r\n");
+    printIntersectionState("Initial");
+}
+
+void app_lab_6_2_loop(void)
+{
+    static TickType_t lastWakeTick = 0;
+    if (lastWakeTick == 0)
+    {
+        lastWakeTick = xTaskGetTickCount();
+    }
+
+    if (readRequestButtonPressedEvent())
+    {
+        s_nsRequestActive = true;
+        printIntersectionState("NS request button pressed");
+    }
+
+    if (s_ewFsm.state == FSM_LIGHT_GREEN && s_nsFsm.state == FSM_LIGHT_RED)
+    {
+        const TickType_t elapsed = xTaskGetTickCount() - s_ewGreenStartTick;
+        if (s_nsRequestActive && elapsed >= pdMS_TO_TICKS(TL_EW_GREEN_MS))
+        {
+            transitionEwToNs();
+            s_nsRequestActive = false;
+        }
+    }
+    else if (s_nsFsm.state == FSM_LIGHT_GREEN && s_ewFsm.state == FSM_LIGHT_RED)
+    {
+        const TickType_t elapsed = xTaskGetTickCount() - s_nsGreenStartTick;
+        if (elapsed >= pdMS_TO_TICKS(TL_NS_GREEN_MS))
+        {
+            transitionNsToEw();
+        }
+    }
+
+    vTaskDelayUntil(&lastWakeTick, pdMS_TO_TICKS(TL_LOOP_PERIOD_MS));
+}
