@@ -1,7 +1,5 @@
 #include "dd_led.h"
 
-#include "../../include/config.h"
-
 static dd_led_state_t s_ledState = DD_LED_OFF;
 
 void ddLedInit(void)

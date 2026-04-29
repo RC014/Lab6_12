@@ -3,6 +3,8 @@
 
 #include <Arduino.h>
 
+#include "../../include/config.h"
+
 typedef enum
 {
     DD_LED_OFF = 0,

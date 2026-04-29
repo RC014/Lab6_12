@@ -1,12 +1,5 @@
 #include "app_lab_6_1.h"
 
-#include <Arduino.h>
-#include <stdio.h>
-
-#include "../dd_button/dd_button.h"
-#include "../dd_led/dd_led.h"
-#include "../dd_serial_stdio/dd_serial_stdio.h"
-
 typedef enum
 {
     FSM_STATE_OFF = 0,

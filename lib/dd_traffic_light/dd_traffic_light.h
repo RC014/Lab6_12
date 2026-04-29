@@ -3,6 +3,10 @@
 
 #include <stdint.h>
 
+#include <Arduino.h>
+
+#include "../../include/config.h"
+
 typedef enum
 {
     DD_TL_DIR_EW = 0,

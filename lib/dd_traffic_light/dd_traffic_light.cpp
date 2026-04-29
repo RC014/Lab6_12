@@ -1,9 +1,5 @@
 #include "dd_traffic_light.h"
 
-#include <Arduino.h>
-
-#include "../../include/config.h"
-
 static dd_tl_color_t s_ewColor = DD_TL_COLOR_RED;
 static dd_tl_color_t s_nsColor = DD_TL_COLOR_RED;
 

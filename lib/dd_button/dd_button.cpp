@@ -1,7 +1,5 @@
 #include "dd_button.h"
 
-#include "../../include/config.h"
-
 static uint8_t s_lastRawState = HIGH;
 static uint8_t s_stableState = HIGH;
 static unsigned long s_lastTransitionMs = 0;
