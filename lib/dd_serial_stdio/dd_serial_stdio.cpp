@@ -28,5 +28,5 @@ void ddSerialStdioSetup()
                                        ddSerialGetChar); // asociem functiile de citire/scriere cu un flux
     stdin = srv_serial_stream;                           // redirectionam intrarea standard
     stdout = srv_serial_stream;                          // redirectionam iesirea standard
-    printf("\r\nsrvSerial Started\n");
+    printf("\r\nSerial STDIO ready.\r\n");
 }

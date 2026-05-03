@@ -117,6 +117,43 @@ static void transitionNsToEw(void)
     printIntersectionState("Transition NS->EW step 2");
 }
 
+static void trafficLightTask(void *pvParameters)
+{
+    (void)pvParameters;
+
+    TickType_t lastWakeTick = xTaskGetTickCount();
+    s_ewGreenStartTick = lastWakeTick;
+
+    for (;;)
+    {
+        if (readRequestButtonPressedEvent())
+        {
+            s_nsRequestActive = true;
+            printIntersectionState("NS request button pressed");
+        }
+
+        if (s_ewFsm.state == FSM_LIGHT_GREEN && s_nsFsm.state == FSM_LIGHT_RED)
+        {
+            const TickType_t elapsed = xTaskGetTickCount() - s_ewGreenStartTick;
+            if (s_nsRequestActive && elapsed >= pdMS_TO_TICKS(TL_EW_GREEN_MS))
+            {
+                transitionEwToNs();
+                s_nsRequestActive = false;
+            }
+        }
+        else if (s_nsFsm.state == FSM_LIGHT_GREEN && s_ewFsm.state == FSM_LIGHT_RED)
+        {
+            const TickType_t elapsed = xTaskGetTickCount() - s_nsGreenStartTick;
+            if (elapsed >= pdMS_TO_TICKS(TL_NS_GREEN_MS))
+            {
+                transitionNsToEw();
+            }
+        }
+
+        vTaskDelayUntil(&lastWakeTick, pdMS_TO_TICKS(TL_LOOP_PERIOD_MS));
+    }
+}
+
 void app_lab_6_2_setup(void)
 {
     ddSerialStdioSetup();
@@ -132,44 +169,15 @@ void app_lab_6_2_setup(void)
     applyCurrentStates();
 
     s_nsRequestActive = false;
-    s_ewGreenStartTick = xTaskGetTickCount();
 
     printf("\r\nLab 6.2 - Smart Traffic Light ready.\r\n");
     printf("Priority: EW stays GREEN while no NS request exists.\r\n");
     printIntersectionState("Initial");
+
+    xTaskCreate(trafficLightTask, "tl_fsm", 512, NULL, 1, NULL);
+    vTaskStartScheduler();
 }
 
 void app_lab_6_2_loop(void)
 {
-    static TickType_t lastWakeTick = 0;
-    if (lastWakeTick == 0)
-    {
-        lastWakeTick = xTaskGetTickCount();
-    }
-
-    if (readRequestButtonPressedEvent())
-    {
-        s_nsRequestActive = true;
-        printIntersectionState("NS request button pressed");
-    }
-
-    if (s_ewFsm.state == FSM_LIGHT_GREEN && s_nsFsm.state == FSM_LIGHT_RED)
-    {
-        const TickType_t elapsed = xTaskGetTickCount() - s_ewGreenStartTick;
-        if (s_nsRequestActive && elapsed >= pdMS_TO_TICKS(TL_EW_GREEN_MS))
-        {
-            transitionEwToNs();
-            s_nsRequestActive = false;
-        }
-    }
-    else if (s_nsFsm.state == FSM_LIGHT_GREEN && s_ewFsm.state == FSM_LIGHT_RED)
-    {
-        const TickType_t elapsed = xTaskGetTickCount() - s_nsGreenStartTick;
-        if (elapsed >= pdMS_TO_TICKS(TL_NS_GREEN_MS))
-        {
-            transitionNsToEw();
-        }
-    }
-
-    vTaskDelayUntil(&lastWakeTick, pdMS_TO_TICKS(TL_LOOP_PERIOD_MS));
 }

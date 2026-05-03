@@ -16,9 +16,22 @@ static void writeDirectionPins(dd_tl_direction_t direction, dd_tl_color_t color)
         greenPin = TL_NS_GREEN_PIN;
     }
 
-    digitalWrite(redPin, (color == DD_TL_COLOR_RED) ? HIGH : LOW);
-    digitalWrite(yellowPin, (color == DD_TL_COLOR_YELLOW) ? HIGH : LOW);
-    digitalWrite(greenPin, (color == DD_TL_COLOR_GREEN) ? HIGH : LOW);
+    digitalWrite(redPin, LOW);
+    digitalWrite(yellowPin, LOW);
+    digitalWrite(greenPin, LOW);
+
+    if (color == DD_TL_COLOR_RED)
+    {
+        digitalWrite(redPin, HIGH);
+    }
+    else if (color == DD_TL_COLOR_YELLOW)
+    {
+        digitalWrite(yellowPin, HIGH);
+    }
+    else
+    {
+        digitalWrite(greenPin, HIGH);
+    }
 }
 
 void ddTrafficLightInit(void)
