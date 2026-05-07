@@ -7,6 +7,7 @@
 #include <stdio.h>
 
 #include "../../include/config.h"
+#include "../dd_button/dd_button.h"
 #include "../dd_serial_stdio/dd_serial_stdio.h"
 #include "../dd_traffic_light/dd_traffic_light.h"
 

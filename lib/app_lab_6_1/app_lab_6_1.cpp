@@ -1,5 +1,6 @@
 #include "app_lab_6_1.h"
 
+
 typedef enum
 {
     FSM_STATE_OFF = 0,
@@ -7,6 +8,8 @@ typedef enum
 } fsm_state_t;
 
 static fsm_state_t s_state = FSM_STATE_OFF;
+static dd_led_t s_led;
+static dd_button_t s_button;
 
 static const char *fsmStateToStr(fsm_state_t state)
 {
@@ -15,7 +18,7 @@ static const char *fsmStateToStr(fsm_state_t state)
 
 static void applyStateToLed(fsm_state_t state)
 {
-    ddLedSet((state == FSM_STATE_ON) ? DD_LED_ON : DD_LED_OFF);
+    ddLedSetState(&s_led, (state == FSM_STATE_ON) ? DD_LED_ON : DD_LED_OFF);
 }
 
 static void fsmToggleState(void)
@@ -27,9 +30,23 @@ static void fsmToggleState(void)
 
 void app_lab_6_1_setup(void)
 {
-    ddSerialStdioSetup();
-    ddButtonInit();
-    ddLedInit();
+    const dd_serial_stdio_config_t serialConfig = {
+        &Serial,
+        SERIAL_BAUDRATE,
+        true};
+    const dd_button_config_t buttonConfig = {
+        BUTTON_PIN,
+        BUTTON_ACTIVE_STATE,
+        BUTTON_DEBOUNCE_MS,
+        INPUT_PULLUP};
+    const dd_led_config_t ledConfig = {
+        LED_PIN,
+        HIGH,
+        DD_LED_OFF};
+
+    (void)ddSerialStdioSetupWithConfig(&serialConfig);
+    (void)ddButtonCreate(&s_button, &buttonConfig);
+    (void)ddLedCreate(&s_led, &ledConfig);
 
     s_state = FSM_STATE_OFF;
     applyStateToLed(s_state);
@@ -41,7 +58,7 @@ void app_lab_6_1_setup(void)
 
 void app_lab_6_1_loop(void)
 {
-    if (ddButtonWasPressed())
+    if (ddButtonPollPressed(&s_button))
     {
         fsmToggleState();
     }

@@ -1,14 +1,5 @@
 #include "app_lab_6_2.h"
 
-#include <Arduino.h>
-#include <Arduino_FreeRTOS.h>
-#include <stdbool.h>
-#include <stdio.h>
-
-#include "../../include/config.h"
-#include "../dd_serial_stdio/dd_serial_stdio.h"
-#include "../dd_traffic_light/dd_traffic_light.h"
-
 typedef enum
 {
     FSM_LIGHT_RED = 0,
@@ -23,11 +14,10 @@ typedef struct
 
 static direction_fsm_t s_ewFsm = {FSM_LIGHT_RED};
 static direction_fsm_t s_nsFsm = {FSM_LIGHT_RED};
+static dd_traffic_light_t s_trafficLight;
+static dd_button_t s_requestButton;
 
 static bool s_nsRequestActive = false;
-static uint8_t s_btnLastRaw = HIGH;
-static uint8_t s_btnStable = HIGH;
-static unsigned long s_btnLastChangeMs = 0;
 
 static TickType_t s_ewGreenStartTick = 0;
 static TickType_t s_nsGreenStartTick = 0;
@@ -48,8 +38,8 @@ static dd_tl_color_t toTlColor(fsm_light_state_t state)
 
 static void applyCurrentStates(void)
 {
-    ddTrafficLightSet(DD_TL_DIR_EW, toTlColor(s_ewFsm.state));
-    ddTrafficLightSet(DD_TL_DIR_NS, toTlColor(s_nsFsm.state));
+    ddTrafficLightSetState(&s_trafficLight, DD_TL_DIR_EW, toTlColor(s_ewFsm.state));
+    ddTrafficLightSetState(&s_trafficLight, DD_TL_DIR_NS, toTlColor(s_nsFsm.state));
 }
 
 static void printIntersectionState(const char *prefix)
@@ -69,22 +59,7 @@ static void setDirectionState(direction_fsm_t *fsm, fsm_light_state_t nextState)
 
 static bool readRequestButtonPressedEvent(void)
 {
-    const uint8_t raw = (uint8_t)digitalRead(TL_REQUEST_BUTTON_PIN);
-    const unsigned long nowMs = millis();
-
-    if (raw != s_btnLastRaw)
-    {
-        s_btnLastRaw = raw;
-        s_btnLastChangeMs = nowMs;
-    }
-
-    if ((nowMs - s_btnLastChangeMs) >= TL_REQUEST_DEBOUNCE_MS && s_btnStable != s_btnLastRaw)
-    {
-        s_btnStable = s_btnLastRaw;
-        return (s_btnStable == TL_REQUEST_ACTIVE_STATE);
-    }
-
-    return false;
+    return ddButtonPollPressed(&s_requestButton);
 }
 
 static void transitionEwToNs(void)
@@ -156,13 +131,22 @@ static void trafficLightTask(void *pvParameters)
 
 void app_lab_6_2_setup(void)
 {
-    ddSerialStdioSetup();
-    ddTrafficLightInit();
+    const dd_serial_stdio_config_t serialConfig = {
+        &Serial,
+        SERIAL_BAUDRATE,
+        true};
+    const dd_traffic_light_config_t tlConfig = {
+        {TL_EW_RED_PIN, TL_EW_YELLOW_PIN, TL_EW_GREEN_PIN, HIGH},
+        {TL_NS_RED_PIN, TL_NS_YELLOW_PIN, TL_NS_GREEN_PIN, HIGH}};
+    const dd_button_config_t buttonConfig = {
+        TL_REQUEST_BUTTON_PIN,
+        TL_REQUEST_ACTIVE_STATE,
+        TL_REQUEST_DEBOUNCE_MS,
+        INPUT_PULLUP};
 
-    pinMode(TL_REQUEST_BUTTON_PIN, INPUT_PULLUP);
-    s_btnLastRaw = (uint8_t)digitalRead(TL_REQUEST_BUTTON_PIN);
-    s_btnStable = s_btnLastRaw;
-    s_btnLastChangeMs = millis();
+    (void)ddSerialStdioSetupWithConfig(&serialConfig);
+    (void)ddTrafficLightCreate(&s_trafficLight, &tlConfig);
+    (void)ddButtonCreate(&s_requestButton, &buttonConfig);
 
     setDirectionState(&s_ewFsm, FSM_LIGHT_GREEN);
     setDirectionState(&s_nsFsm, FSM_LIGHT_RED);

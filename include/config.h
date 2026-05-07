@@ -4,7 +4,7 @@
 // Aplicație activă:
 // 61 = Lab 6.1 (automat finit LED + buton)
 // 62 = Lab 6.2 (rezervat/extensii)
-#define ACTIVE_APP_LAB 62
+#define ACTIVE_APP_LAB 61
 
 // Serial communication
 #define SERIAL_BAUDRATE 9600

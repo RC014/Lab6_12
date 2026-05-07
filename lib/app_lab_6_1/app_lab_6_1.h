@@ -8,6 +8,8 @@
 #include "../dd_led/dd_led.h"
 #include "../dd_serial_stdio/dd_serial_stdio.h"
 
+#include "../../include/config.h"
+
 void app_lab_6_1_setup(void);
 void app_lab_6_1_loop(void);
 
